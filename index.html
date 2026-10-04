@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound Safari – Articulation Practice</title>
+<style>
+  :root{
+    --bg:#fff8e7; --ink:#2b2b3a; --card:#ffffff; --accent:#ff5c8a; --target:#e8290b;
+    --blue:#3a86ff; --green:#2ea44f; --shadow:0 6px 0 rgba(0,0,0,.15);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:"Comic Sans MS","Trebuchet MS",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;gap:12px;flex-wrap:wrap}
+  h1{margin:0;font-size:clamp(1.3rem,3vw,2rem)}
+  .modes{display:flex;gap:8px}
+  .modes button{font:inherit;font-size:1.05rem;padding:10px 18px;border:3px solid var(--ink);border-radius:999px;background:#fff;cursor:pointer;min-height:48px}
+  main{max-width:900px;margin:0 auto;padding:0 16px 16px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(8px,2vw,18px)}
+  .tile{aspect-ratio:1/1;background:var(--card);border:4px solid var(--ink);border-radius:22px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font:inherit;color:inherit;padding:6px;
+    transition:transform .08s}
+  .tile:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.15)}
+  .tile .pic{font-size:clamp(2.6rem,10vw,5.5rem);line-height:1}
+  .tile .lbl{font-size:clamp(1.1rem,3.6vw,2rem);font-weight:800;letter-spacing:.04em}
+  .tile .lbl b{color:var(--target);text-decoration:underline;text-decoration-thickness:4px;text-underline-offset:4px}
+  .tile.speaking{outline:6px solid var(--accent)}
+  .tile.off{opacity:.25;pointer-events:none;filter:grayscale(1)}
+  /* adult area */
+  details.adult{max-width:900px;margin:24px auto 40px;padding:0 16px}
+  details.adult>summary{cursor:pointer;color:#777;font-size:.95rem;padding:8px 0}
+  .panel{background:#fff;border:2px solid #ccc;border-radius:14px;padding:16px;font-family:system-ui,sans-serif}
+  .panel h2{font-size:1.1rem;margin:18px 0 8px}
+  .panel h2:first-child{margin-top:0}
+  .gate input{font-size:1.1rem;width:5em;padding:6px}
+  .gate button,.panel button.s{font-size:1rem;padding:8px 14px;margin-left:6px;cursor:pointer}
+  .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+  .checks label{display:flex;gap:6px;align-items:center}
+  #log{max-height:220px;overflow:auto;background:#f6f6f6;border-radius:8px;padding:8px;font-family:ui-monospace,Consolas,monospace;font-size:.9rem;white-space:pre-wrap}
+  .msg{color:#c0392b;margin-left:8px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>🗣️ Sound Safari</h1>
+  <div class="modes" role="group" aria-label="Tiles">
+    <button id="shuffle">🔀 Random 3</button>
+    <button id="orig">🔀 Random 3 x 3</button>
+  </div>
+</header>
+
+<main>
+  <div class="grid" id="grid"></div>
+
+</main>
+
+
+<details class="adult">
+  <summary>Adult settings</summary>
+  <div class="panel">
+    <div class="gate" id="gate">
+      <label>Grown-ups only: what is <span id="q"></span> ?
+        <input id="ans" inputmode="numeric" autocomplete="off"></label>
+      <button id="unlock">Unlock</button><span class="msg" id="gmsg"></span>
+    </div>
+
+    <div id="adultBody" hidden>
+      <h2>Target sound isolator</h2>
+      <div class="checks" id="checks"></div>
+
+      <h2>Session log</h2>
+      <div id="log" aria-live="polite"></div>
+      <p>
+        <button class="s" id="viewHist">Review history</button>
+        <button class="s" id="clearLog">Clear current session</button>
+        <button class="s" id="clearAll">Clear all history</button>
+        <button class="s" id="lock">Lock</button>
+      </p>
+    </div>
+  </div>
+</details>
+
+<script>
+(() => {
+  // label: [before, target, after]; say = TTS-friendly respellings (TTS can't read "/d/")
+  // [id, name, emoji, label[before,target,after], sound shown, spoken respelling, slow syllables, optional mouth cue]
+  const DATA = [
+    ['drums','Drums','🥁',['','D','rums'],'d','duh','Drums','Tap your tongue behind your top teeth!'],
+    ['oar','Oar','🛶',['Oa','r',''],'r','rrr','Or','Pull your tongue back and round your lips!'],
+    ['nose','Nose','👃',['','N','ose'],'n','nuh','Nose','Tongue behind your teeth!'],
+    ['eye','Eye','👁️',['','Eye',''],'eye','ah-ee','Eye','Open big!'],
+    ['hippo','Hippo','🦛',['','H','ippo'],'h','huh','Hip, po','Breathe it out!'],
+    ['motorcycle','Motorcycle','🏍️',['','M','otorcycle'],'m','muh','Mo, tor, cy, cle','Put your lips together!'],
+    ['basketball','Basketball','🏀',['','B','asketball'],'b','buh','Bas, ket, ball','Pop your lips!'],
+    ['tap','Tap','🚰',['','T','ap'],'t','tuh','Tap','Make a sharp sound!'],
+    ['chick','Chick','🐥',['','Ch','ick'],'ch','chuh','Chick','Train sound!'],
+    ['alligator','Alligator','🐊',['','A','lligator'],'ah','ah','Al, li, ga, tor','Open your mouth wide!'],
+    ['angel','Angel','👼',['','A','ngel'],'ay','ay','An, gel','Smile wide!'],
+    ['ant','Ant','🐜',['','A','nt'],'a','aeh','Ant','Open your mouth and smile!'],
+    ['octopus','Octopus','🐙',['','O','ctopus'],'o','ah','Oc, to, pus','Open your mouth round and big!'],
+    ['elephant','Elephant','🐘',['','E','lephant'],'e','eh','El, e, phant','Open your mouth a little!'],
+    ['umbrella','Umbrella','☂️',['','U','mbrella'],'u','uh','Um, brel, la','Relax your mouth!'],
+    ['ear','Ear','👂',['','Ear',''],'ear','eer','Ear','Smile, then slide!'],
+    ['airplane','Airplane','✈️',['','Air','plane'],'air','air','Air, plane','Open, then round your lips!'],
+    ['bear','Bear','🐻',['B','ear',''],'er','air','Bear','Round your lips a little!'],
+    ['thumb','Thumb','👍',['','Th','umb'],'th','thuh','Thumb','Tongue peeks out between your teeth!'],
+    ['snake','Snake','🐍',['','S','nake'],'s','sss','Snake','Teeth together, blow a snake sound!'],
+    ['van','Van','🚐',['','V','an'],'v','vuh','Van','Top teeth on your bottom lip!'],
+    ['goose','Goose','🪿',['','G','oose'],'g','guh','Goose','Back of your tongue goes up!'],
+    ['worm','Worm','🪱',['','W','orm'],'w','wuh','Worm','Make a little round kiss mouth!'],
+    ['yoyo','Yoyo','🪀',['','Y','oyo'],'y','yuh','Yo, yo','Tongue up high and smile!'],
+    ['fireworks','Fireworks','🎆',['','F','ireworks'],'f','fuh','Fire, works','Top teeth on your bottom lip!'],
+    ['icecream','Ice cream','🍦',['','I','ce cream'],'i','eye','Ice, cream','Open wide, then smile!'],
+    ['zipper','Zipper','🤐',['','Z','ipper'],'z','zuh','Zip, per','Teeth together and buzz like a bee!'],
+    ['sleepingbaby','Sleeping baby','👶',['','Sh','h… baby'],'sh','shuh','Sleep, ing, ba, by','Round your lips and say shh!'],
+    ['mouse','Mouse','🐭',['','Mouse',''],'ee','ee','Mouse','Big smile, like a squeak!'],
+  ];
+  // R = slow rate for isolated sounds; the word is then broken into chunks and said whole
+  const TILES = DATA.map(([id, name, emoji, label, snd, tts, syl, cue]) => ({
+    id, name, emoji, label,
+    steps: [
+      [tts, .5, .5], [tts, .5, .5],
+      ...syl.split(', ').length > 1 ? syl.split(', ').map(c => [c, .25, .55]) : [],
+      [name, .7],
+      [cue, .5],
+      [tts, .5, .5], [name + '!', .5],
+      ['Your turn!', 0],
+    ],
+    shown: `/${snd}/ … /${snd}/ … ${name}. ${cue} Your turn!`,
+  }));
+  const RATE = 0.68, PITCH = 1.25;
+  const $ = s => document.querySelector(s);
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+
+  let enabled = store.get('st.enabled2', TILES.map(t => t.id)), shown = TILES.slice(0, 9).map(t => t.id);
+  let history = store.get('st.history', []);          // all-time entries
+  let session = [];                                    // current-session entries
+  let playToken = 0;
+
+  // ---------- speech ----------
+  let voice = null;
+  function pickVoice(){
+    const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
+    voice = vs.find(v => /female|samantha|zira|aria|jenny|google uk english female/i.test(v.name)) || vs[0] || null;
+  }
+  if ('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+
+  function say(text, token, rate = RATE){
+    return new Promise(res => {
+      if (!('speechSynthesis' in window) || token !== playToken) return res();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = rate; u.pitch = PITCH; if (voice) u.voice = voice;
+      u.onend = u.onerror = () => res();
+      speechSynthesis.speak(u);
+    });
+  }
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  function stopSpeech(){ playToken++; if ('speechSynthesis' in window) speechSynthesis.cancel(); }
+  async function sequence(steps, token){
+    for (const [text, pause, rate] of steps){
+      if (token !== playToken) return false;
+      await say(text, token, rate);
+      if (pause) await wait(pause * 1000);
+    }
+    return token === playToken;
+  }
+
+  // ---------- logging ----------
+  function stamp(){ return new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
+  function logEvent(text){
+    const e = {t: new Date().toISOString(), s: stamp(), text};
+    session.push(e); history.push(e);
+    if (history.length > 1000) history = history.slice(-1000);
+    store.set('st.history', history);
+    renderLog();
+  }
+  const fmt = e => `[${e.s}] ${e.text}`;
+  function renderLog(list = session){
+    const el = $('#log');
+    el.textContent = list.length ? list.map(fmt).join('\n') : 'No activity yet.';
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ---------- grid ----------
+  function buildGrid(){
+    const g = $('#grid'); g.innerHTML = '';
+    shown.map(id => TILES.find(t => t.id === id)).forEach(t => {
+      const b = document.createElement('button');
+      b.className = 'tile'; b.dataset.id = t.id;
+      b.setAttribute('aria-label', t.name);
+      const [a, m, z] = t.label;
+      b.innerHTML = `<span class="pic" aria-hidden="true">${t.emoji}</span><span class="lbl">${a}<b>${m}</b>${z}</span>`;
+      b.addEventListener('click', () => onTile(t, b));
+      g.appendChild(b);
+    });
+    applyEnabled();
+  }
+  function shuffle(n){
+    stopSpeech();
+    const pool = TILES.filter(t => enabled.includes(t.id)).map(t => t.id);
+    for (let i = pool.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    shown = pool.slice(0, n);
+    buildGrid();
+    logEvent(`Random ${n}: ` + shown.map(id => TILES.find(t => t.id === id).name).join(', '));
+  }
+  function applyEnabled(){
+    document.querySelectorAll('.tile').forEach(b => {
+      const off = !enabled.includes(b.dataset.id);
+      b.classList.toggle('off', off); b.disabled = off;
+    });
+  }
+
+  async function onTile(t, el){
+    stopSpeech(); const token = playToken;
+    logEvent(`Single tap: ${t.name}`);
+    document.querySelectorAll('.tile').forEach(b => b.classList.remove('speaking'));
+    el.classList.add('speaking');
+    await sequence(t.steps, token);
+    el.classList.remove('speaking');
+  }
+
+  // ---------- adult gate & settings ----------
+  let a, b;
+  function newQ(){ a = 2 + Math.floor(Math.random() * 8); b = 2 + Math.floor(Math.random() * 8); $('#q').textContent = `${a} + ${b}`; $('#ans').value = ''; }
+  function buildSettings(){
+    const c = $('#checks');
+    TILES.forEach(t => {
+      const l = document.createElement('label');
+      l.innerHTML = `<input type="checkbox" value="${t.id}"> ${t.emoji} ${t.name}`;
+      const cb = l.querySelector('input'); cb.checked = enabled.includes(t.id);
+      cb.addEventListener('change', () => {
+        enabled = [...c.querySelectorAll('input:checked')].map(i => i.value);
+        store.set('st.enabled2', enabled); applyEnabled();
+        logEvent(`Settings: ${t.name} ${cb.checked ? 'enabled' : 'disabled'}`);
+      });
+      c.appendChild(l);
+    });
+  }
+  function unlock(){
+    if (parseInt($('#ans').value, 10) === a + b){
+      $('#gate').hidden = true; $('#adultBody').hidden = false; $('#gmsg').textContent = ''; renderLog();
+    } else { $('#gmsg').textContent = 'Not quite — try again.'; newQ(); }
+  }
+  function lock(){ $('#adultBody').hidden = true; $('#gate').hidden = false; newQ(); }
+
+  // ---------- wire up ----------
+  $('#shuffle').onclick = () => shuffle(3);
+  $('#orig').onclick = () => shuffle(9);
+  $('#unlock').onclick = unlock;
+  $('#ans').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+  $('#lock').onclick = lock;
+  $('#clearLog').onclick = () => { session = []; renderLog(); };
+  $('#clearAll').onclick = () => {
+    if (confirm('Delete ALL saved history? This cannot be undone.')){ history = []; session = []; store.set('st.history', []); renderLog(); }
+  };
+  $('#viewHist').onclick = () => {
+    const el = $('#viewHist');
+    if (el.dataset.on){ delete el.dataset.on; el.textContent = 'Review history'; renderLog(); }
+    else {
+      el.dataset.on = 1; el.textContent = 'Back to this session';
+      const d = e => new Date(e.t).toLocaleDateString();
+      $('#log').textContent = history.length ? history.map(e => `${d(e)} ${fmt(e)}`).join('\n') : 'No saved history.';
+    }
+  };
+
+  buildGrid(); buildSettings(); newQ(); renderLog();
+})();
+</script>
+</body>
+</html>
